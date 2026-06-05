@@ -81,7 +81,7 @@
           <form id="register-form" class="register-form" hidden>
             <h3>Ny kasse – registrer</h3>
             <p id="bambu-hint" class="bambu-hint" hidden></p>
-            <label>Stregkode<input name="barcode" readonly /></label>
+            <input name="barcode" type="hidden" />
             <input name="bambu_code" type="hidden" />
             <input name="store_sku" type="hidden" />
             <label>Mærke<input name="brand" placeholder="eSUN, Polymaker…" /></label>
@@ -117,6 +117,6 @@
 
   <script src="lib/zxing.min.js"></script>
   <script src="lib/tesseract/tesseract.min.js"></script>
-  <script type="module" src="js/app.js?v=10"></script>
+  <script type="module" src="js/app.js?v=14"></script>
 </body>
 </html>

@@ -1,16 +1,19 @@
 # Filament Stock
 
-Lille webservice til at holde styr på filament-kasser: scan stregkoder, tæl spoler op, tag billeder med iPhone og få overblik over lageret.
+Lille webservice til at holde styr på filament-kasser: scan stregkoder eller farve-labels, tæl spoler op, tag billeder med iPhone og få overblik over lageret.
+
+Se **[delivery_summary.md](delivery_summary.md)** for fuld leveranceoversigt og TODO.
 
 ## Funktioner
 
-- **Scan stregkode** – live kamera eller tag billede (iPhone-venligt)
-- **Bambu Lab farve-ID** – henter produktkatalog fra Bambu Lab EU store, OCR på labels og genkender filamenter
+- **Scan stregkode** – live kamera eller tag billede (iPhone-venligt, kræver HTTPS)
+- **Scan farve-label (OCR)** – læser Bambu Lab farve-ID (fx `10100`) via server-OCR
+- **Auto-gem** – farve-ID alene er nok; produktet oprettes automatisk ved scan (+1)
+- **Bambu Lab-katalog** – henter produktdata fra EU store, kendte EAN i seed-fil
 - **Tæl op/ned** – +1 / −1 pr. kasse
-- **Registrer ny type** – mærke, materiale, farve, vægt, placering
 - **Dashboard** – total spoler, fordelt på materiale
 - **Lagerliste** – søgbar oversigt med farvemarkering
-- **Billeder** – uploades fra iPhone og knyttes til stregkode
+- **Billeder** – uploades fra iPhone og knyttes til produkt
 - **SQLite database** – `data/filament.db`
 - **LAN-adgang** – brug fra telefon på samme netværk
 
@@ -20,7 +23,7 @@ Lille webservice til at holde styr på filament-kasser: scan stregkoder, tæl sp
 cd ~/Projects/filament-stock
 pip install -r requirements.txt
 chmod +x start.sh gen-cert.sh sync-bambu.sh open-firewall.sh
-./sync-bambu.sh    # første gang: henter Bambu Lab SKU-katalog
+./sync-bambu.sh    # første gang: henter Bambu Lab-katalog
 ./start.sh
 ```
 
@@ -69,16 +72,22 @@ python3 server.py 8090 --http
 1. Åbn **https://** URL i Safari og accepter certifikat-advarslen
 2. Tryk **Del → Tilføj til hjemmeskærm** (PWA)
 3. Gå til **Scan**
-4. Brug **Tag billede** eller **Live kamera** under fold-ud sektionen
-5. Appen læser koden, tæller +1 og gemmer billedet
+4. **Stregkode:** «Tag billede» eller «Start live scan»
+5. **Farve-ID:** «Scan farve-label (OCR)» – peg på teksten `(10100)` på etiketten
+6. Produktet gemmes automatisk (+1 spole); juster med +1/−1 bagefter
 
-## API (kort)
+Du kan også indtaste farve-ID manuelt (fx `10100`) uden at scanne.
+
+## API
 
 | Endpoint | Beskrivelse |
 |----------|-------------|
+| `GET /api/health` | Server status |
 | `GET /api/inventory` | Hele lageret |
-| `GET /api/stats` | Overblik |
-| `POST /api/scan` | Scan/tæl op (`barcode`, `delta`) |
+| `GET /api/stats` | Dashboard-tal |
+| `POST /api/scan` | Scan/tæl (`barcode`/`color_id`, `delta`, `auto_register`) |
+| `POST /api/decode` | Stregkode fra billede (multipart `file`) |
+| `POST /api/ocr` | Farve-ID fra label-billede (multipart `file`) |
 | `POST /api/filament` | Opret/opdater produkt |
 | `POST /api/photo` | Upload billede (multipart) |
 | `GET /api/bambu/lookup?barcode=` | Slå Bambu Lab produkt op |
@@ -88,15 +97,17 @@ python3 server.py 8090 --http
 
 Bambu bruger 5-cifrede **farve-ID** på labels (fx `10100` = Jade White PLA Basic) og EAN-stregkoder på kasser (`6975337…`).
 
-Brug **Scan farve-label (OCR)** til at læse farve-ID fra etiketten, eller tag billede af stregkoden.
-
+- **OCR** kører primært på serveren (RapidOCR) – hurtigere og mere stabilt end browser på iPhone
 - Kataloget hentes fra `eu.store.bambulab.com`
 - Kendte EAN kan udvides i `data/bambu_barcode_seed.json`
-- Ved scan af ukendt stregkode med Bambu-match udfyldes formularen automatisk
-- Ved scan med +1 oprettes produktet automatisk i lageret
+- Ved scan med +1 oprettes produktet automatisk – **farve-ID alene er nok**, fysisk stregkode ikke påkrævet
 
 ## Teknologi
 
-- Python 3 + SQLite + zxing-cpp (stregkode-læsning på serveren)
+- Python 3 + SQLite
+- `zxing-cpp` – server stregkode-decode
+- `rapidocr-onnxruntime` – server OCR af farve-labels
+- `pillow-heif` – HEIC-billeder fra iPhone
 - Vanilla JS mobil-UI
-- ZXing + BarcodeDetector til stregkoder
+- ZXing + BarcodeDetector (client stregkode)
+- Tesseract.js (client OCR-backup)

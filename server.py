@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import db
+import ocr_label
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / 'static'
@@ -139,18 +140,23 @@ class FilamentHandler(SimpleHTTPRequestHandler):
                     return json_response(self, {'error': 'Mangler farve-ID eller stregkode'}, 400)
                 existing, bambu = db.resolve_filament_for_scan(code)
                 if not existing:
-                    if bambu and auto_register and delta > 0:
-                        item = db.filament_from_bambu(code, bambu, quantity=0)
-                        item = db.adjust_quantity(item['barcode'], delta, source=source)
-                        return json_response(
-                            self,
-                            {
-                                'known': True,
-                                'item': item,
-                                'bambu': bambu,
-                                'auto_registered': True,
-                            },
-                        )
+                    if auto_register and delta > 0:
+                        item = None
+                        if bambu:
+                            item = db.filament_from_bambu(code, bambu, quantity=0)
+                        elif re.fullmatch(r'[1-9]\d{4}', code):
+                            item = db.filament_from_color_id(code, quantity=0)
+                        if item:
+                            item = db.adjust_quantity(item['barcode'], delta, source=source)
+                            return json_response(
+                                self,
+                                {
+                                    'known': True,
+                                    'item': item,
+                                    'bambu': bambu,
+                                    'auto_registered': True,
+                                },
+                            )
                     return json_response(
                         self,
                         {
@@ -172,8 +178,12 @@ class FilamentHandler(SimpleHTTPRequestHandler):
 
             if path == '/api/filament':
                 data = read_json(self)
-                if not data.get('barcode', '').strip():
-                    return json_response(self, {'error': 'Mangler stregkode'}, 400)
+                barcode = (data.get('barcode') or data.get('bambu_code') or data.get('color_id') or '').strip()
+                if not barcode:
+                    return json_response(self, {'error': 'Mangler farve-ID'}, 400)
+                data['barcode'] = barcode
+                if not data.get('bambu_code', '').strip() and re.fullmatch(r'[1-9]\d{4}', barcode):
+                    data['bambu_code'] = barcode
                 item = db.upsert_filament(data)
                 return json_response(self, {'item': item})
 
@@ -182,6 +192,9 @@ class FilamentHandler(SimpleHTTPRequestHandler):
 
             if path == '/api/decode':
                 return self._handle_decode_upload()
+
+            if path == '/api/ocr':
+                return self._handle_ocr_upload()
 
             return json_response(self, {'error': 'Ukendt endpoint'}, 404)
         except KeyError as exc:
@@ -224,6 +237,31 @@ class FilamentHandler(SimpleHTTPRequestHandler):
             return json_response(self, {'error': 'Stregkode-læsning timeout'}, 504)
         except OSError as exc:
             return json_response(self, {'error': str(exc)}, 500)
+
+    def _handle_ocr_upload(self):
+        content_type = self.headers.get('Content-Type', '')
+        if not content_type.startswith('multipart/form-data'):
+            return json_response(self, {'error': 'Forventet multipart upload'}, 400)
+
+        form = cgi.FieldStorage(
+            fp=self.rfile,
+            headers=self.headers,
+            environ={
+                'REQUEST_METHOD': 'POST',
+                'CONTENT_TYPE': content_type,
+            },
+        )
+        file_field = get_uploaded_file(form)
+        if file_field is None:
+            return json_response(self, {'error': 'Mangler fil'}, 400)
+
+        data = file_field.file.read()
+        try:
+            return json_response(self, ocr_label.ocr_image_bytes(data))
+        except ValueError as exc:
+            return json_response(self, {'error': str(exc)}, 400)
+        except Exception as exc:
+            return json_response(self, {'error': f'OCR fejl: {exc}'}, 500)
 
     def _handle_photo_upload(self):
         content_type = self.headers.get('Content-Type', '')

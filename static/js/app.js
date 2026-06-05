@@ -7,7 +7,7 @@ import {
   startLiveBarcodeReader,
 } from './scanner.js';
 import { prepareScanImage } from './image_prep.js';
-import { ocrColorIdFromFile } from './label_ocr.js';
+import { ocrColorIdFromFile, preloadOcrWorker } from './label_ocr.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -162,10 +162,45 @@ function prefillBambuForm(bambu) {
   hint.textContent = `Bambu Lab: ${bambu.product_line} · ${bambu.color} · Farve-ID ${bambu.bambu_code}${bambu.spool_type ? ` · ${bambu.spool_type}` : ''}`;
 }
 
-async function handleBarcode(code, { uploadPhoto = null, addQty = 0 } = {}) {
+function storageCodeFor(code, bambu = null) {
+  if (bambu) return bambu.barcode || bambu.bambu_code || code;
+  return code;
+}
+
+async function saveNewFilament(code, { bambu = null, quantity = 1 } = {}) {
+  const colorId = bambu?.bambu_code || code;
+  const payload = {
+    barcode: storageCodeFor(code, bambu),
+    bambu_code: colorId,
+    store_sku: bambu?.store_sku || '',
+    brand: bambu?.brand || 'Bambu Lab',
+    material: bambu?.material || 'PLA',
+    color: bambu?.color || '',
+    weight_g: Number(bambu?.weight_g || 1000),
+    quantity,
+  };
+  const { item } = await api('/api/filament', { method: 'POST', body: JSON.stringify(payload) });
+  return item;
+}
+
+function showKnownItem(item, { bambu = null, addQty = 0, code = '' } = {}) {
+  $('#register-form').hidden = true;
+  $('#known-actions').hidden = false;
+  updateKnownUI(item);
+  if (bambu) {
+    toast(`Gemt: ${bambu.product_line} ${bambu.color}`);
+  } else if (addQty) {
+    toast(`+${addQty} → nu ${item.quantity} spoler`);
+  } else {
+    toast(`${item.brand || code}: ${item.quantity} spoler`);
+  }
+}
+
+async function handleBarcode(code, { uploadPhoto = null, addQty = 0, source = null } = {}) {
   if (!code) return;
   resetBambuHint();
 
+  const scanSource = source || (addQty ? 'photo' : 'lookup');
   const result = await api('/api/scan', {
     method: 'POST',
     body: JSON.stringify({
@@ -173,17 +208,25 @@ async function handleBarcode(code, { uploadPhoto = null, addQty = 0 } = {}) {
       color_id: code,
       sku: code,
       delta: addQty || 0,
-      source: addQty ? 'photo' : 'lookup',
+      source: scanSource,
       auto_register: true,
     }),
   });
 
-  const displayColorId = result.item?.bambu_code || result.color_id || result.sku || result.bambu?.bambu_code || '';
-  const storageCode = result.item?.barcode || code;
-  showScanResult(storageCode, displayColorId);
-  currentBarcode = result.known ? result.item.barcode : storageCode;
+  const displayColorId = result.item?.bambu_code || result.color_id || result.sku || result.bambu?.bambu_code || code;
+  let item = result.item || null;
+  let storageCode = item?.barcode || storageCodeFor(code, result.bambu);
 
-  if (uploadPhoto) {
+  if (!result.known && addQty > 0) {
+    item = await saveNewFilament(code, { bambu: result.bambu, quantity: addQty });
+    storageCode = item.barcode;
+    result.known = true;
+  }
+
+  showScanResult(storageCode, displayColorId);
+  currentBarcode = storageCode;
+
+  if (uploadPhoto && item) {
     await uploadPhotoFile(uploadPhoto, storageCode);
   }
 
@@ -191,30 +234,21 @@ async function handleBarcode(code, { uploadPhoto = null, addQty = 0 } = {}) {
     $('#known-actions').hidden = true;
     $('#register-form').hidden = false;
     const form = $('#register-form');
-    form.barcode.value = result.bambu?.barcode || result.bambu?.bambu_code || code;
+    form.barcode.value = storageCodeFor(code, result.bambu);
     form.quantity.value = 1;
-    form.bambu_code.value = '';
-    form.store_sku.value = '';
+    form.bambu_code.value = result.bambu?.bambu_code || code;
+    form.store_sku.value = result.bambu?.store_sku || '';
     if (result.bambu) {
       prefillBambuForm(result.bambu);
       setStatus('Bambu Lab produkt fundet – tjek og gem');
       toast(`Bambu: ${result.bambu.product_line} ${result.bambu.color}`);
       return;
     }
-    setStatus('Ny stregkode – udfyld og gem');
+    setStatus('Nyt produkt – udfyld og gem');
     return;
   }
 
-  $('#register-form').hidden = true;
-  $('#known-actions').hidden = false;
-  updateKnownUI(result.item);
-  if (result.auto_registered && result.bambu) {
-    toast(`Bambu registreret: ${result.bambu.product_line} ${result.bambu.color}`);
-  } else if (addQty) {
-    toast(`+${addQty} → nu ${result.item.quantity} spoler`);
-  } else {
-    toast(`${result.item.brand || code}: ${result.item.quantity} spoler`);
-  }
+  showKnownItem(item, { bambu: result.bambu, addQty, code });
 }
 
 function updateKnownUI(item) {
@@ -335,7 +369,11 @@ async function processPhotoFile(file, { labelOnly = false } = {}) {
     const result = await decodeFromPhoto(prepared.jpegFile, prepared.previewImg, { labelOnly });
     const label = result.type === 'color_id' ? `Farve-ID ${result.value}` : result.value;
     setStatus(`Fundet: ${label}`);
-    await handleBarcode(result.value, { uploadPhoto: originalFile, addQty: 1 });
+    await handleBarcode(result.value, {
+      uploadPhoto: originalFile,
+      addQty: 1,
+      source: labelOnly ? 'ocr' : 'photo',
+    });
   } catch (err) {
     setStatus(err.message || 'Kunne ikke læse billede');
     toast(err.message || 'Kunne ikke læse billede');
@@ -442,6 +480,8 @@ function setupScanUi() {
   } else {
     secureWarning.hidden = true;
   }
+
+  preloadOcrWorker();
 
   if (canUseLiveCamera()) {
     liveControls.hidden = false;

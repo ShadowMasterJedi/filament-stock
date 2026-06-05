@@ -370,11 +370,17 @@ def lookup_bambu(barcode: str) -> dict | None:
     return None
 
 
+def storage_barcode_for(code: str, bambu: dict | None = None) -> str:
+    if bambu:
+        return (bambu.get('barcode') or bambu.get('bambu_code') or code).strip()
+    return code.strip()
+
+
 def filament_from_bambu(barcode: str, bambu: dict, quantity: int = 1) -> dict:
     label = f"{bambu['product_line']} · {bambu['color']}"
     if bambu.get('spool_type'):
         label = f"{label} ({bambu['spool_type']})"
-    storage_barcode = (bambu.get('barcode') or barcode or bambu.get('bambu_code', '')).strip()
+    storage_barcode = storage_barcode_for(barcode, bambu)
     return upsert_filament(
         {
             'barcode': storage_barcode,
@@ -388,6 +394,28 @@ def filament_from_bambu(barcode: str, bambu: dict, quantity: int = 1) -> dict:
             'notes': label,
             'bambu_code': bambu.get('bambu_code', ''),
             'store_sku': bambu.get('store_sku', ''),
+        }
+    )
+
+
+def filament_from_color_id(color_id: str, quantity: int = 1) -> dict:
+    code = color_id.strip()
+    bambu = lookup_bambu(code)
+    if bambu:
+        return filament_from_bambu(code, bambu, quantity)
+    return upsert_filament(
+        {
+            'barcode': code,
+            'brand': 'Bambu Lab',
+            'material': 'PLA',
+            'color': '',
+            'color_hex': '#7a8fa8',
+            'weight_g': 1000,
+            'quantity': quantity,
+            'location': '',
+            'notes': f'Farve-ID {code}',
+            'bambu_code': code,
+            'store_sku': '',
         }
     )
 
