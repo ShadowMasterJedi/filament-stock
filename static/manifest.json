@@ -1,0 +1,9 @@
+{
+  "name": "Filament Stock",
+  "short_name": "Filament",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "lang": "da"
+}

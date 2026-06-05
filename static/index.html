@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#111827" />
+  <title>Filament Stock</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div>
+        <h1>Filament Stock</h1>
+        <p id="subtitle" class="subtitle">Dit filament-lager</p>
+      </div>
+      <div id="stats-pill" class="stats-pill">0 spoler</div>
+    </header>
+
+    <main id="views">
+      <section id="view-home" class="view active">
+        <div class="card-grid" id="summary-cards"></div>
+        <h2 class="section-title">Materiale</h2>
+        <div id="material-bars" class="material-bars"></div>
+        <h2 class="section-title">Seneste scanninger</h2>
+        <div id="recent-scans" class="recent-list"></div>
+        <h2 class="section-title">Seneste billeder</h2>
+        <div id="photo-strip" class="photo-strip"></div>
+      </section>
+
+      <section id="view-scan" class="view">
+        <div class="scan-panel">
+          <div id="scan-preview" class="scan-preview">
+            <p class="scan-help">Tag et billede af stregkoden på kassen</p>
+          </div>
+
+          <div class="scan-actions scan-actions-main">
+            <label class="btn btn-large file-label">
+              📷 Tag billede af stregkode
+              <input id="photo-camera" type="file" accept="image/*" capture="environment" hidden />
+            </label>
+            <label class="btn secondary file-label">
+              Vælg fra album
+              <input id="photo-album" type="file" accept="image/*" hidden />
+            </label>
+          </div>
+
+          <div class="manual-scan">
+            <label class="field-label" for="manual-barcode">Eller indtast stregkode manuelt</label>
+            <div class="path-row">
+              <input id="manual-barcode" class="text-input" type="text" inputmode="numeric" placeholder="5701234567890" autocomplete="off" />
+              <button id="btn-manual" class="btn secondary compact" type="button">Søg</button>
+            </div>
+          </div>
+
+          <details id="live-scan-details" class="live-details" hidden>
+            <summary>Live kamera (kræver HTTPS)</summary>
+            <button id="btn-live-scan" class="btn secondary btn-spaced" type="button">Start live scan</button>
+            <video id="scan-video" class="scan-video" playsinline muted autoplay></video>
+          </details>
+
+          <p id="scan-status" class="hint"></p>
+        </div>
+
+        <div id="scan-result" class="card" hidden>
+          <p class="label">Stregkode</p>
+          <p id="result-barcode" class="barcode-display"></p>
+          <div id="known-actions" hidden>
+            <p id="result-item" class="item-line"></p>
+            <div class="qty-row">
+              <button id="btn-minus" class="btn secondary compact" type="button">−1</button>
+              <span id="result-qty" class="qty-display">0</span>
+              <button id="btn-plus" class="btn compact" type="button">+1</button>
+            </div>
+          </div>
+          <form id="register-form" class="register-form" hidden>
+            <h3>Ny kasse – registrer</h3>
+            <label>Stregkode<input name="barcode" readonly /></label>
+            <label>Mærke<input name="brand" placeholder="eSUN, Polymaker…" /></label>
+            <label>Materiale
+              <select name="material" id="material-select"></select>
+            </label>
+            <label>Farve<input name="color" placeholder="Sort, Silk sølv…" /></label>
+            <label>Farve (visning)<input name="color_hex" type="color" value="#3b82f6" /></label>
+            <label>Vægt pr. spole (g)<input name="weight_g" type="number" value="1000" min="100" step="50" /></label>
+            <label>Antal nu<input name="quantity" type="number" value="1" min="0" step="1" /></label>
+            <label>Placering<input name="location" placeholder="Hylde A2" /></label>
+            <button class="btn" type="submit">Gem i lager</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="view-inventory" class="view">
+        <div class="toolbar">
+          <input id="search" class="search" type="search" placeholder="Søg mærke, farve, stregkode…" />
+        </div>
+        <div id="inventory-list" class="inventory-list"></div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button class="tab active" data-view="home" type="button">📊 Overblik</button>
+      <button class="tab" data-view="scan" type="button">📷 Scan</button>
+      <button class="tab" data-view="inventory" type="button">📦 Lager</button>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="lib/zxing.min.js"></script>
+  <script type="module" src="js/app.js?v=2"></script>
+</body>
+</html>

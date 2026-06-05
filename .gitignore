@@ -1,0 +1,7 @@
+.DS_Store
+__pycache__/
+*.pyc
+data/filament.db
+data/photos/*
+!data/photos/.gitkeep
+!data/.gitkeep
