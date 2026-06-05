@@ -11,14 +11,21 @@ if command -v lsof >/dev/null 2>&1 && lsof -ti :"${PORT}" >/dev/null 2>&1; then
   sleep 1
 fi
 
-echo "Filament Stock starter på port ${PORT}"
+if [ ! -f certs/cert.pem ] || [ ! -f certs/key.pem ]; then
+  echo "Opretter TLS-certifikat (self-signed)…"
+  chmod +x gen-cert.sh
+  ./gen-cert.sh
+fi
+
+echo "Filament Stock starter med HTTPS på port ${PORT}"
 echo ""
-echo "  Lokalt:    http://localhost:${PORT}"
+echo "  Lokalt:    https://localhost:${PORT}"
 if [ -n "$LAN_IP" ]; then
-  echo "  Netværk:   http://${LAN_IP}:${PORT}"
+  echo "  Netværk:   https://${LAN_IP}:${PORT}"
   echo ""
-  echo "  Åbn på iPhone og tilføj til hjemmeskærm for app-oplevelse"
+  echo "  iPhone: Safari viser advarsel første gang – «Vis detaljer» → «Besøg websitet»"
+  echo "  Derefter virker live kamera under Scan."
 fi
 echo ""
 echo "Tryk Ctrl+C for at stoppe"
-python3 server.py "$PORT"
+python3 server.py "$PORT" --https

@@ -1,0 +1,8 @@
+{
+  "comment": "Kendte EAN-stregkoder på Bambu Lab kasser. key = bambu_code|spool_type",
+  "barcodes": [
+    { "barcode": "6975337031024", "key": "10100|Filament with spool", "note": "PLA Basic Jade White" },
+    { "barcode": "6975337031390", "key": "10102|Filament with spool", "note": "PLA Basic Silver" },
+    { "barcode": "6975337039075", "key": "10105|Refill", "note": "PLA Basic Dark Gray refill" }
+  ]
+}

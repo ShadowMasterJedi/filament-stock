@@ -1,15 +1,19 @@
 import {
   canUseLiveCamera,
   decodeFromFile,
-  loadImageFromFile,
+  decodeFromFileViaServer,
+  decodeFromImage,
+  getCameraBlockReason,
+  startLiveBarcodeReader,
 } from './scanner.js';
+import { prepareScanImage } from './image_prep.js';
+import { ocrColorIdFromFile } from './label_ocr.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
 let currentBarcode = null;
-let liveStream = null;
-let liveScanTimer = null;
+let liveScanStop = null;
 let inventoryCache = [];
 
 const toast = (msg) => {
@@ -96,11 +100,15 @@ function renderPhotoStrip() {
   `).join('');
 }
 
+function colorIdLabel(item) {
+  return item.bambu_code || '–';
+}
+
 function renderInventory(items) {
   const q = $('#search').value.trim().toLowerCase();
   const filtered = items.filter((i) => {
     if (!q) return true;
-    const hay = `${i.barcode} ${i.brand} ${i.material} ${i.color} ${i.location}`.toLowerCase();
+    const hay = `${i.bambu_code} ${i.store_sku} ${i.brand} ${i.material} ${i.color} ${i.barcode} ${i.location}`.toLowerCase();
     return hay.includes(q);
   });
 
@@ -110,11 +118,11 @@ function renderInventory(items) {
       <div>
         <div class="inv-title">${i.brand || 'Ukendt mærke'} · ${i.material}</div>
         <div class="inv-meta">${i.color || '–'} · ${i.weight_g}g · ${i.location || 'ingen placering'}</div>
-        <div class="inv-meta">${i.barcode}</div>
+        <div class="inv-meta">Farve-ID ${colorIdLabel(i)}</div>
       </div>
       <div class="qty-badge">${i.quantity}</div>
     </article>
-  `).join('') || '<p class="hint">Intet matcher søgningen.</p>';
+  `).join('') || '<p class="hint">Intet matcher farve-ID søgningen.</p>';
 }
 
 async function refreshInventory() {
@@ -129,56 +137,89 @@ async function loadMaterials() {
   $('#material-select').innerHTML = materials.map((m) => `<option value="${m}">${m}</option>`).join('');
 }
 
-function showScanResult(barcode) {
-  currentBarcode = barcode;
+function showScanResult(code, colorId = '') {
+  currentBarcode = code;
   $('#scan-result').hidden = false;
-  $('#result-barcode').textContent = barcode;
+  $('#result-barcode').textContent = colorId ? colorId : code;
 }
 
-async function lookupBarcode(barcode) {
-  return api('/api/scan', {
+function resetBambuHint() {
+  const hint = $('#bambu-hint');
+  hint.hidden = true;
+  hint.textContent = '';
+}
+
+function prefillBambuForm(bambu) {
+  const form = $('#register-form');
+  form.brand.value = bambu.brand || 'Bambu Lab';
+  form.material.value = bambu.material || 'PLA';
+  form.color.value = bambu.color || '';
+  form.weight_g.value = bambu.weight_g || 1000;
+  form.bambu_code.value = bambu.bambu_code || '';
+  form.store_sku.value = bambu.store_sku || '';
+  const hint = $('#bambu-hint');
+  hint.hidden = false;
+  hint.textContent = `Bambu Lab: ${bambu.product_line} · ${bambu.color} · Farve-ID ${bambu.bambu_code}${bambu.spool_type ? ` · ${bambu.spool_type}` : ''}`;
+}
+
+async function handleBarcode(code, { uploadPhoto = null, addQty = 0 } = {}) {
+  if (!code) return;
+  resetBambuHint();
+
+  const result = await api('/api/scan', {
     method: 'POST',
-    body: JSON.stringify({ barcode, delta: 0 }),
+    body: JSON.stringify({
+      barcode: code,
+      color_id: code,
+      sku: code,
+      delta: addQty || 0,
+      source: addQty ? 'photo' : 'lookup',
+      auto_register: true,
+    }),
   });
-}
 
-async function handleBarcode(barcode, { uploadPhoto = null, addQty = 0 } = {}) {
-  if (!barcode) return;
-  showScanResult(barcode);
-
-  const result = await lookupBarcode(barcode);
+  const displayColorId = result.item?.bambu_code || result.color_id || result.sku || result.bambu?.bambu_code || '';
+  const storageCode = result.item?.barcode || code;
+  showScanResult(storageCode, displayColorId);
+  currentBarcode = result.known ? result.item.barcode : storageCode;
 
   if (uploadPhoto) {
-    await uploadPhotoFile(uploadPhoto, barcode);
+    await uploadPhotoFile(uploadPhoto, storageCode);
   }
 
   if (!result.known) {
     $('#known-actions').hidden = true;
     $('#register-form').hidden = false;
     const form = $('#register-form');
-    form.barcode.value = barcode;
+    form.barcode.value = result.bambu?.barcode || result.bambu?.bambu_code || code;
     form.quantity.value = 1;
+    form.bambu_code.value = '';
+    form.store_sku.value = '';
+    if (result.bambu) {
+      prefillBambuForm(result.bambu);
+      setStatus('Bambu Lab produkt fundet – tjek og gem');
+      toast(`Bambu: ${result.bambu.product_line} ${result.bambu.color}`);
+      return;
+    }
     setStatus('Ny stregkode – udfyld og gem');
     return;
   }
 
   $('#register-form').hidden = true;
   $('#known-actions').hidden = false;
-  if (addQty) {
-    const { item } = await api('/api/scan', {
-      method: 'POST',
-      body: JSON.stringify({ barcode, delta: addQty, source: 'photo' }),
-    });
-    updateKnownUI(item);
-    toast(`+${addQty} → nu ${item.quantity} spoler`);
+  updateKnownUI(result.item);
+  if (result.auto_registered && result.bambu) {
+    toast(`Bambu registreret: ${result.bambu.product_line} ${result.bambu.color}`);
+  } else if (addQty) {
+    toast(`+${addQty} → nu ${result.item.quantity} spoler`);
   } else {
-    updateKnownUI(result.item);
-    toast(`${result.item.brand || barcode}: ${result.item.quantity} spoler`);
+    toast(`${result.item.brand || code}: ${result.item.quantity} spoler`);
   }
 }
 
 function updateKnownUI(item) {
-  $('#result-item').textContent = `${item.brand} · ${item.material} · ${item.color}`;
+  const colorId = item.bambu_code ? `${item.bambu_code} · ` : '';
+  $('#result-item').textContent = `${colorId}${item.brand} · ${item.material} · ${item.color}`;
   $('#result-qty').textContent = item.quantity;
 }
 
@@ -212,12 +253,15 @@ $('#register-form').addEventListener('submit', async (e) => {
   toast('Gemt i lager');
 });
 
-async function showImagePreview(file) {
-  const img = await loadImageFromFile(file);
+async function showImagePreview(previewImg) {
+  stopLiveScan();
   const preview = $('#scan-preview');
-  preview.innerHTML = '';
-  img.className = 'preview-img';
-  preview.appendChild(img);
+  $('#scan-help').hidden = true;
+  $('#scan-video').hidden = true;
+  preview.querySelectorAll('.preview-img').forEach((el) => el.remove());
+  previewImg.className = 'preview-img';
+  preview.appendChild(previewImg);
+  return previewImg;
 }
 
 async function uploadPhotoFile(file, barcode) {
@@ -230,120 +274,181 @@ async function uploadPhotoFile(file, barcode) {
   return data;
 }
 
-async function processPhotoFile(file) {
-  if (!file) return;
-  setStatus('Viser billede og læser stregkode…');
+async function lookupBambuColorId(colorId) {
+  return api(`/api/bambu/lookup?barcode=${encodeURIComponent(colorId)}`);
+}
+
+async function resolveColorIdFromOcr(file) {
+  const { ids } = await ocrColorIdFromFile(file, setStatus);
+  if (!ids.length) {
+    throw new Error('Ingen farve-ID fundet på label. Tag et tydeligt billede af teksten «(10100)».');
+  }
+
+  for (const id of ids) {
+    const res = await lookupBambuColorId(id);
+    if (res.found) return { id, bambu: res.product };
+  }
+  return { id: ids[0], bambu: null };
+}
+
+async function decodeBarcodeFromPhoto(file, previewImg = null) {
   try {
-    await showImagePreview(file);
-    const barcode = await decodeFromFile(file);
-    setStatus(`Fundet: ${barcode}`);
-    await handleBarcode(barcode, { uploadPhoto: file, addQty: 1 });
-  } catch (err) {
-    setStatus(err.message);
-    toast(err.message);
+    return await decodeFromFileViaServer(file);
+  } catch (serverErr) {
+    setStatus('Prøver lokal stregkode-læsning…');
     try {
-      await showImagePreview(file);
-      await uploadPhotoFile(file);
-      toast('Billede gemt – indtast stregkode manuelt nedenfor');
+      if (previewImg) return await decodeFromImage(previewImg);
+      return await decodeFromFile(file);
+    } catch {
+      throw new Error(
+        `${serverErr.message}. Brug «Scan farve-label» eller indtast farve-ID manuelt.`,
+      );
+    }
+  }
+}
+
+async function decodeFromPhoto(file, previewImg, { labelOnly = false } = {}) {
+  if (!labelOnly) {
+    const barcode = await decodeBarcodeFromPhoto(file, previewImg);
+    return { type: 'barcode', value: barcode };
+  }
+
+  const { id } = await resolveColorIdFromOcr(file);
+  return { type: 'color_id', value: id };
+}
+
+async function processPhotoFile(file, { labelOnly = false } = {}) {
+  if (!file) {
+    toast('Ingen fil valgt');
+    return;
+  }
+
+  let prepared = null;
+  let originalFile = file;
+
+  try {
+    setStatus('Komprimerer billede…');
+    prepared = await prepareScanImage(file);
+    await showImagePreview(prepared.previewImg);
+    setStatus(labelOnly ? 'Læser farve-label…' : 'Læser stregkode…');
+
+    const result = await decodeFromPhoto(prepared.jpegFile, prepared.previewImg, { labelOnly });
+    const label = result.type === 'color_id' ? `Farve-ID ${result.value}` : result.value;
+    setStatus(`Fundet: ${label}`);
+    await handleBarcode(result.value, { uploadPhoto: originalFile, addQty: 1 });
+  } catch (err) {
+    setStatus(err.message || 'Kunne ikke læse billede');
+    toast(err.message || 'Kunne ikke læse billede');
+    try {
+      if (!prepared) prepared = await prepareScanImage(file);
+      await showImagePreview(prepared.previewImg);
+      await uploadPhotoFile(originalFile);
+      toast('Billede gemt – indtast farve-ID manuelt');
     } catch {
       /* ignore */
     }
   }
 }
 
-for (const id of ['photo-camera', 'photo-album']) {
-  $(`#${id}`).addEventListener('change', (e) => {
+function bindPhotoInput(id, options = {}) {
+  const input = $(`#${id}`);
+  if (!input) return;
+  input.addEventListener('change', (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    processPhotoFile(file);
+    processPhotoFile(file, options);
   });
 }
 
+bindPhotoInput('photo-camera');
+bindPhotoInput('photo-album');
+bindPhotoInput('label-camera', { labelOnly: true });
+$('#btn-photo-camera')?.addEventListener('click', () => $('#photo-camera').click());
+$('#btn-label-camera')?.addEventListener('click', () => $('#label-camera').click());
+$('#btn-photo-album')?.addEventListener('click', () => $('#photo-album').click());
+
 $('#btn-manual').addEventListener('click', () => {
-  const code = $('#manual-barcode').value.trim();
-  if (!code) {
-    toast('Indtast en stregkode');
+  const colorId = $('#manual-color-id').value.trim();
+  if (!colorId) {
+    toast('Indtast et farve-ID');
     return;
   }
-  handleBarcode(code, { addQty: 0 });
+  handleBarcode(colorId, { addQty: 0 });
 });
 
-$('#manual-barcode').addEventListener('keydown', (e) => {
+$('#manual-color-id').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') $('#btn-manual').click();
 });
 
+function resetScanPreview() {
+  $('#scan-help').hidden = false;
+  $('#scan-video').hidden = true;
+  $('#btn-stop-live').hidden = true;
+  $('#btn-live-scan').hidden = false;
+}
+
 function stopLiveScan() {
-  if (liveScanTimer) {
-    clearInterval(liveScanTimer);
-    liveScanTimer = null;
+  if (liveScanStop) {
+    liveScanStop();
+    liveScanStop = null;
   }
-  if (liveStream) {
-    liveStream.getTracks().forEach((t) => t.stop());
-    liveStream = null;
-  }
-  const video = $('#scan-video');
-  video.srcObject = null;
-  video.classList.remove('active');
+  resetScanPreview();
 }
 
 async function startLiveScan() {
-  if (!canUseLiveCamera()) {
-    toast('Live kamera virker ikke over HTTP fra iPhone – brug «Tag billede»');
+  const blockReason = getCameraBlockReason();
+  if (blockReason) {
+    setStatus(blockReason);
+    toast(blockReason);
     return;
   }
-  stopLiveScan();
-  setStatus('Starter kamera…');
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } },
-      audio: false,
-    });
-    liveStream = stream;
-    const video = $('#scan-video');
-    video.srcObject = stream;
-    video.classList.add('active');
-    await video.play();
 
-    if ('BarcodeDetector' in window) {
-      const detector = new BarcodeDetector({
-        formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e'],
-      });
-      liveScanTimer = setInterval(async () => {
-        if (video.readyState < 2) return;
-        try {
-          const codes = await detector.detect(video);
-          if (codes.length) {
-            stopLiveScan();
-            const barcode = codes[0].rawValue;
-            setStatus(`Scannet: ${barcode}`);
-            await handleBarcode(barcode);
-            await adjust(1);
-          }
-        } catch {
-          /* continue */
-        }
-      }, 400);
-      setStatus('Peg kameraet mod stregkoden');
-      return;
-    }
-    setStatus('Live-scan ikke understøttet her – brug «Tag billede»');
-  } catch {
-    setStatus('Kamera blokeret – brug «Tag billede af stregkode»');
-    toast('Brug «Tag billede» i stedet');
+  stopLiveScan();
+  $('#scan-help').hidden = true;
+  $('#btn-live-scan').hidden = true;
+  $('#btn-stop-live').hidden = false;
+  setStatus('Starter kamera… Tillad adgang hvis iPhone spørger.');
+
+  const video = $('#scan-video');
+  try {
+    liveScanStop = await startLiveBarcodeReader(video, async (barcode) => {
+      stopLiveScan();
+      setStatus(`Scannet: ${barcode}`);
+      await handleBarcode(barcode);
+      await adjust(1);
+    });
+    setStatus('Peg kameraet mod stregkoden');
+  } catch (err) {
     stopLiveScan();
+    setStatus(err.message);
+    toast(err.message);
   }
 }
 
 $('#btn-live-scan').addEventListener('click', startLiveScan);
+$('#btn-stop-live').addEventListener('click', stopLiveScan);
 
 function setupScanUi() {
-  const liveDetails = $('#live-scan-details');
-  if (canUseLiveCamera()) {
-    liveDetails.hidden = false;
-    setStatus('Brug «Tag billede» – det virker bedst fra iPhone over LAN');
+  const liveControls = $('#live-scan-controls');
+  const secureWarning = $('#secure-warning');
+  const httpsLink = $('#https-link');
+  const onHttps = location.protocol === 'https:';
+
+  if (!onHttps) {
+    const httpsUrl = `https://${location.host}${location.pathname}`;
+    httpsLink.href = httpsUrl;
+    httpsLink.textContent = httpsUrl;
+    secureWarning.hidden = false;
   } else {
-    liveDetails.hidden = true;
-    setStatus('iPhone over LAN: brug «Tag billede» eller indtast stregkode manuelt. Live kamera kræver HTTPS.');
+    secureWarning.hidden = true;
+  }
+
+  if (canUseLiveCamera()) {
+    liveControls.hidden = false;
+    setStatus('Tryk «Start live scan» eller brug «Tag billede»');
+  } else {
+    liveControls.hidden = true;
+    setStatus(getCameraBlockReason() || 'Brug «Tag billede» eller indtast stregkode manuelt');
   }
 }
 
@@ -358,5 +463,14 @@ async function init() {
     toast(err.message);
   }
 }
+
+window.addEventListener('error', (e) => {
+  console.error(e.error || e.message);
+  toast(`App-fejl: ${e.message}`);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error(e.reason);
+  toast(`Fejl: ${e.reason?.message || e.reason}`);
+});
 
 init();

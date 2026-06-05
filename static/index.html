@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#111827" />
   <title>Filament Stock</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=3" />
 </head>
 <body>
   <div id="app">
@@ -32,40 +32,43 @@
 
       <section id="view-scan" class="view">
         <div class="scan-panel">
+          <div id="secure-warning" class="secure-warning" hidden>
+            Du bruger <strong>http</strong> – live kamera virker ikke. Åbn
+            <a id="https-link" href="#">https-versionen</a> og accepter certifikat-advarslen.
+          </div>
+
           <div id="scan-preview" class="scan-preview">
-            <p class="scan-help">Tag et billede af stregkoden på kassen</p>
+            <p id="scan-help" class="scan-help">Tag billede af stregkode eller brug «Scan farve-label» for farve-ID (fx 10100)</p>
+            <video id="scan-video" class="scan-video" playsinline webkit-playsinline muted autoplay hidden></video>
+          </div>
+
+          <div id="live-scan-controls" class="scan-actions scan-actions-main" hidden>
+            <button id="btn-live-scan" class="btn btn-large" type="button">📹 Start live scan</button>
+            <button id="btn-stop-live" class="btn secondary" type="button" hidden>Stop kamera</button>
           </div>
 
           <div class="scan-actions scan-actions-main">
-            <label class="btn btn-large file-label">
-              📷 Tag billede af stregkode
-              <input id="photo-camera" type="file" accept="image/*" capture="environment" hidden />
-            </label>
-            <label class="btn secondary file-label">
-              Vælg fra album
-              <input id="photo-album" type="file" accept="image/*" hidden />
-            </label>
+            <button id="btn-photo-camera" class="btn btn-large" type="button">📷 Tag billede af stregkode</button>
+            <button id="btn-label-camera" class="btn secondary" type="button">🏷️ Scan farve-label (OCR)</button>
+            <button id="btn-photo-album" class="btn secondary" type="button">Vælg fra album</button>
+            <input id="photo-camera" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" hidden />
+            <input id="label-camera" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" hidden />
+            <input id="photo-album" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" hidden />
           </div>
 
           <div class="manual-scan">
-            <label class="field-label" for="manual-barcode">Eller indtast stregkode manuelt</label>
+            <label class="field-label" for="manual-color-id">Eller indtast farve-ID manuelt</label>
             <div class="path-row">
-              <input id="manual-barcode" class="text-input" type="text" inputmode="numeric" placeholder="5701234567890" autocomplete="off" />
+              <input id="manual-color-id" class="text-input" type="text" inputmode="numeric" placeholder="10100" autocomplete="off" />
               <button id="btn-manual" class="btn secondary compact" type="button">Søg</button>
             </div>
           </div>
-
-          <details id="live-scan-details" class="live-details" hidden>
-            <summary>Live kamera (kræver HTTPS)</summary>
-            <button id="btn-live-scan" class="btn secondary btn-spaced" type="button">Start live scan</button>
-            <video id="scan-video" class="scan-video" playsinline muted autoplay></video>
-          </details>
 
           <p id="scan-status" class="hint"></p>
         </div>
 
         <div id="scan-result" class="card" hidden>
-          <p class="label">Stregkode</p>
+          <p class="label">Farve-ID</p>
           <p id="result-barcode" class="barcode-display"></p>
           <div id="known-actions" hidden>
             <p id="result-item" class="item-line"></p>
@@ -77,7 +80,10 @@
           </div>
           <form id="register-form" class="register-form" hidden>
             <h3>Ny kasse – registrer</h3>
+            <p id="bambu-hint" class="bambu-hint" hidden></p>
             <label>Stregkode<input name="barcode" readonly /></label>
+            <input name="bambu_code" type="hidden" />
+            <input name="store_sku" type="hidden" />
             <label>Mærke<input name="brand" placeholder="eSUN, Polymaker…" /></label>
             <label>Materiale
               <select name="material" id="material-select"></select>
@@ -94,7 +100,7 @@
 
       <section id="view-inventory" class="view">
         <div class="toolbar">
-          <input id="search" class="search" type="search" placeholder="Søg mærke, farve, stregkode…" />
+          <input id="search" class="search" type="search" inputmode="numeric" placeholder="Søg farve-ID (fx 10100)…" />
         </div>
         <div id="inventory-list" class="inventory-list"></div>
       </section>
@@ -110,6 +116,7 @@
   <div id="toast" class="toast" hidden></div>
 
   <script src="lib/zxing.min.js"></script>
-  <script type="module" src="js/app.js?v=2"></script>
+  <script src="lib/tesseract/tesseract.min.js"></script>
+  <script type="module" src="js/app.js?v=10"></script>
 </body>
 </html>

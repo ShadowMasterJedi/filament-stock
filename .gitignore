@@ -5,3 +5,6 @@ data/filament.db
 data/photos/*
 !data/photos/.gitkeep
 !data/.gitkeep
+certs/*.pem
+certs/*.key
+data/bambu_catalog_cache.json
