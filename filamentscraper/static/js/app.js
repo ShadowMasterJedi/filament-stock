@@ -80,6 +80,20 @@ function isLocalHost(url) {
   }
 }
 
+function appHost() {
+  const host = window.location.hostname;
+  return host === '127.0.0.1' ? 'localhost' : host;
+}
+
+function defaultScraperUrl() {
+  return `http://${appHost()}:8095/`;
+}
+
+function defaultStockUrl() {
+  const scheme = window.location.protocol === 'http:' ? 'http' : 'https';
+  return `${scheme}://${appHost()}:8090/`;
+}
+
 async function resolvePageUrl() {
   try {
     const res = await fetch('/api/info');
@@ -89,7 +103,12 @@ async function resolvePageUrl() {
   } catch {
     /* fallback */
   }
-  return { page_url: pageUrl(), qr_hint: 'Kunne ikke finde LAN-IP — åbn siden via PC-ens IP i stedet for localhost' };
+  return {
+    page_url: pageUrl(),
+    scraper_url: defaultScraperUrl(),
+    stock_url: defaultStockUrl(),
+    qr_hint: 'Kunne ikke finde LAN-IP — åbn siden via PC-ens IP i stedet for localhost',
+  };
 }
 
 function openHelp() {
@@ -120,6 +139,18 @@ async function openQr() {
 
   if (typeof els.qrDialog.showModal === 'function') {
     els.qrDialog.showModal();
+  }
+}
+
+async function bindEcoNav() {
+  const link = document.getElementById('link-stock');
+  if (!link) return;
+  link.href = defaultStockUrl();
+  try {
+    const info = await resolvePageUrl();
+    if (info.stock_url) link.href = info.stock_url;
+  } catch {
+    link.href = defaultStockUrl();
   }
 }
 
@@ -481,6 +512,20 @@ function getMaxDiscountBuys() {
     buys = buys.filter((b) => isInStock(b.item || b));
   }
 
+  const q = (els.q?.value || '').trim().toLowerCase();
+  if (state.brand || state.material || q) {
+    buys = buys.filter((buy) => {
+      const row = buy.item || buy;
+      if (state.brand && row.brand !== state.brand) return false;
+      if (state.material && row.material !== state.material) return false;
+      if (q) {
+        const hay = `${row.product || ''} ${row.variant || ''} ${row.material || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
   return buys;
 }
 
@@ -696,6 +741,27 @@ function refreshViews() {
 
 /* ——— Data ——— */
 
+function applyDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const view = params.get('view');
+  const material = params.get('material') || '';
+  const brand = params.get('brand') || '';
+  const q = params.get('q') || '';
+
+  if (material) state.material = material;
+  if (brand) state.brand = brand;
+  if (q && els.q) els.q.value = q;
+
+  if (view === 'list' || view === 'maxrabat' || view === 'overview') {
+    setView(view);
+  } else if (material || brand || q) {
+    setView('list');
+  }
+
+  buildChips();
+  refreshViews();
+}
+
 async function loadPrices() {
   const res = await fetch('/api/prices');
   const data = await res.json();
@@ -716,6 +782,8 @@ async function loadPrices() {
   if (data.refresh_running) {
     schedulePoll();
   }
+
+  applyDeepLink();
 }
 
 function schedulePoll() {
@@ -764,6 +832,7 @@ els.refresh.addEventListener('click', triggerRefresh);
 
 runSplash();
 bindDialogs();
+bindEcoNav();
 
 setLoading(true, 'Indlæser…');
 loadPrices().catch((err) => {

@@ -4,30 +4,88 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="theme-color" content="#111827" />
+  <meta name="theme-color" content="#0b1020" />
   <title>Filament Stock</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="css/style.css?v=3" />
+  <link rel="stylesheet" href="css/nxgenlab.css?v=2" />
+  <link rel="stylesheet" href="css/style.css?v=11" />
 </head>
 <body>
-  <div id="app">
-    <header class="topbar">
-      <div>
-        <h1>Filament Stock</h1>
-        <p id="subtitle" class="subtitle">Dit filament-lager</p>
+  <div id="splash" class="splash" role="presentation" aria-hidden="true">
+    <div class="splash-inner">
+      <div class="splash-icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="72" height="72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="14" y="10" width="36" height="44" rx="6" stroke="#00d4ff" stroke-width="3"/>
+          <circle cx="32" cy="32" r="10" stroke="#3dd68c" stroke-width="2.5"/>
+          <path d="M32 22v20M22 32h20" stroke="#00d4ff" stroke-width="2" stroke-linecap="round"/>
+        </svg>
       </div>
-      <div id="stats-pill" class="stats-pill">0 spoler</div>
+      <p class="splash-eyebrow">NxGenLab</p>
+      <h2 class="splash-title">Filament Stock</h2>
+      <p class="splash-tag">Scan · lager · beholdning</p>
+      <footer class="splash-foot">
+        <span>NxGenLab</span>
+        <span>v1.0</span>
+      </footer>
+    </div>
+  </div>
+
+  <div id="app">
+    <header class="header">
+      <nav class="eco-nav" aria-label="NxGenLab apps">
+        <span class="eco-link active">Lager</span>
+        <a id="link-prices" class="eco-link" href="http://localhost:8095/">Priser</a>
+      </nav>
+      <div class="header-main">
+        <p class="eyebrow">NxGenLab · Filament</p>
+        <h1 id="page-title">Frontline</h1>
+        <p id="subtitle" class="lede">Dit filament-lager — overblik på ét sted</p>
+      </div>
+      <div class="header-actions">
+        <p id="status-line" class="status-line"><span class="status-dot"></span><span id="stats-pill">0 spoler</span></p>
+        <div class="header-icon-btns">
+          <button id="btn-help" type="button" class="icon-btn" aria-label="Hjælp">?</button>
+          <button id="btn-qr" type="button" class="icon-btn" aria-label="QR-kode til denne side">QR</button>
+        </div>
+      </div>
     </header>
 
     <main id="views">
       <section id="view-home" class="view active">
-        <div class="card-grid" id="summary-cards"></div>
-        <h2 class="section-title">Materiale</h2>
-        <div id="material-bars" class="material-bars"></div>
-        <h2 class="section-title">Seneste scanninger</h2>
-        <div id="recent-scans" class="recent-list"></div>
-        <h2 class="section-title">Seneste billeder</h2>
-        <div id="photo-strip" class="photo-strip"></div>
+        <div id="dashboard" class="dashboard">
+          <div id="dash-hero" class="dash-hero">
+            <div class="dash-hero-top">
+              <p class="dash-hero-label">Bundet kapital</p>
+              <p class="dash-hero-value" id="dash-hero-value">…</p>
+              <p class="dash-hero-sub" id="dash-hero-sub">Indlæser lager…</p>
+            </div>
+            <div class="dash-hero-actions">
+              <button type="button" class="dash-btn primary" data-goto-view="scan">Scan</button>
+              <a class="dash-btn accent" id="dash-rabat-link" href="http://localhost:8095/?view=maxrabat" target="_blank" rel="noopener">Rabatkøb</a>
+              <a class="dash-btn ghost" id="dash-prices-link" href="http://localhost:8095/">Priser</a>
+            </div>
+          </div>
+          <div id="dash-kpis" class="dash-kpis">
+            <article class="dash-kpi"><span class="dash-kpi-value">—</span><span class="dash-kpi-label">Spoler</span></article>
+            <article class="dash-kpi"><span class="dash-kpi-value">—</span><span class="dash-kpi-label">Typer</span></article>
+            <article class="dash-kpi"><span class="dash-kpi-value">—</span><span class="dash-kpi-label">Lav</span></article>
+            <article class="dash-kpi"><span class="dash-kpi-value">—</span><span class="dash-kpi-label">Alarmer</span></article>
+          </div>
+          <div class="dash-panel" id="dash-frontline-panel" hidden>
+            <div class="section-head dash-panel-head">
+              <h2>Frontlinje</h2>
+              <p class="section-hint">Hvad skal du gøre i dag?</p>
+            </div>
+            <div id="dash-action-queue" class="dash-queue"></div>
+          </div>
+          <div class="dash-panel">
+            <div class="section-head dash-panel-head">
+              <h2>Materiale på hylden</h2>
+            </div>
+            <div id="material-bars" class="material-bars dash-materials"></div>
+          </div>
+          <div id="dash-footer" class="dash-footer"></div>
+        </div>
       </section>
 
       <section id="view-scan" class="view">
@@ -43,13 +101,13 @@
           </div>
 
           <div id="live-scan-controls" class="scan-actions scan-actions-main" hidden>
-            <button id="btn-live-scan" class="btn btn-large" type="button">📹 Start live scan</button>
+            <button id="btn-live-scan" class="btn btn-large" type="button">Start live scan</button>
             <button id="btn-stop-live" class="btn secondary" type="button" hidden>Stop kamera</button>
           </div>
 
           <div class="scan-actions scan-actions-main">
-            <button id="btn-photo-camera" class="btn btn-large" type="button">📷 Tag billede af stregkode</button>
-            <button id="btn-label-camera" class="btn secondary" type="button">🏷️ Scan farve-label (OCR)</button>
+            <button id="btn-photo-camera" class="btn btn-large" type="button">Tag billede af stregkode</button>
+            <button id="btn-label-camera" class="btn secondary" type="button">Scan farve-label (OCR)</button>
             <button id="btn-photo-album" class="btn secondary" type="button">Vælg fra album</button>
             <input id="photo-camera" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" hidden />
             <input id="label-camera" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" capture="environment" hidden />
@@ -104,19 +162,115 @@
         </div>
         <div id="inventory-list" class="inventory-list"></div>
       </section>
+
+      <section id="view-settings" class="view">
+        <div class="settings-panel card">
+          <div class="section-head" style="margin-top:0">
+            <h2>Moonraker</h2>
+            <p class="section-hint">Auto −1 spole når print er færdigt</p>
+          </div>
+          <label class="toggle-row">
+            <input id="moonraker-enabled" type="checkbox" />
+            <span>Aktivér auto −1 ved print</span>
+          </label>
+          <label class="field-label" for="moonraker-url">Moonraker URL</label>
+          <input id="moonraker-url" class="text-input moonraker-url" type="url" placeholder="http://127.0.0.1:7125" />
+          <label class="field-label" for="moonraker-filament">Aktiv spole</label>
+          <select id="moonraker-filament" class="text-input"></select>
+          <p id="moonraker-status" class="hint"></p>
+          <button id="btn-moonraker-save" class="btn secondary compact" type="button">Gem Moonraker</button>
+        </div>
+        <div class="settings-panel card">
+          <div class="section-head" style="margin-top:0">
+            <h2>App</h2>
+            <p class="section-hint">Hjælp og deling</p>
+          </div>
+          <div class="settings-actions">
+            <button id="btn-settings-help" type="button" class="btn secondary">Hjælp</button>
+            <button id="btn-settings-qr" type="button" class="btn secondary">QR-kode</button>
+          </div>
+        </div>
+      </section>
     </main>
 
-    <nav class="tabbar">
-      <button class="tab active" data-view="home" type="button">📊 Overblik</button>
-      <button class="tab" data-view="scan" type="button">📷 Scan</button>
-      <button class="tab" data-view="inventory" type="button">📦 Lager</button>
+    <nav class="pill-nav" aria-label="Hovedmenu">
+      <button class="tab-pill active" data-view="home" type="button" aria-label="Home">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="none"/></svg>
+        <span>Home</span>
+      </button>
+      <button class="tab-pill" data-view="scan" type="button" aria-label="Scan">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V5a2 2 0 0 1 2-2h2M15 3h2a2 2 0 0 1 2 2v2M21 15v2a2 2 0 0 1-2 2h-2M9 21H7a2 2 0 0 1-2-2v-2M8 12h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        <span>Scan</span>
+      </button>
+      <button class="tab-pill" data-view="inventory" type="button" aria-label="Lager">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="none"/><path d="M12 12 20 7.5M12 12v9M12 12 4 7.5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="none"/></svg>
+        <span>Lager</span>
+      </button>
+      <button class="tab-pill" data-view="settings" type="button" aria-label="Indstillinger">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+        <span>Setup</span>
+      </button>
     </nav>
   </div>
+
+  <dialog id="help-dialog" class="overlay-dialog" aria-labelledby="help-title">
+    <div class="dialog-head">
+      <h2 id="help-title">Hjælp</h2>
+      <button type="button" class="dialog-close" data-close-dialog aria-label="Luk">×</button>
+    </div>
+    <div class="dialog-body help-body">
+      <section class="help-card">
+        <h3>Overblik</h3>
+        <p>Frontline-dashboard: bundet kapital, KPI'er, handlingsliste (lav beholdning + prisalarmer), materiale og printer-status.</p>
+      </section>
+      <section class="help-card">
+        <h3>Scan</h3>
+        <p>Scan Bambu stregkode eller farve-label (OCR). Brug <strong>https</strong> på telefonen så live kamera virker. Tryk QR øverst for LAN-link.</p>
+      </section>
+      <section class="help-card">
+        <h3>Lager</h3>
+        <p>Søg på farve-ID og se alle registrerede spoler med antal og placering.</p>
+      </section>
+      <section class="help-card">
+        <h3>Lav beholdning & prisalarmer</h3>
+        <p>Overblik viser spoler med ≤1 tilbage og <strong>prisalarmer</strong> på dine egne farver (rabat, prisfald). Brug <strong>Rabatkøb</strong> for at købe billigt.</p>
+      </section>
+      <section class="help-card">
+        <h3>Setup</h3>
+        <p>Moonraker auto −1, hjælp og QR-kode til telefon-adgang.</p>
+      </section>
+      <section class="help-card">
+        <h3>Moonraker</h3>
+        <p>Under <strong>Setup</strong>: vælg aktiv spole og aktivér auto <strong>−1</strong> når print er færdigt på Moonraker/Klipper.</p>
+      </section>
+      <section class="help-card">
+        <h3>Filament priser</h3>
+        <p>Skift til <strong>Priser</strong> øverst for at sammenligne Bambu og SUNLU, se rabatkøb og katalog.</p>
+      </section>
+      <p class="help-note">NxGenLab · Filament Stock kører lokalt på din PC.</p>
+    </div>
+  </dialog>
+
+  <dialog id="qr-dialog" class="overlay-dialog overlay-qr" aria-labelledby="qr-title">
+    <div class="qr-screen">
+      <div class="qr-header">
+        <span>SCAN</span>
+        <span>NxGenLab</span>
+      </div>
+      <button type="button" class="dialog-close qr-close" data-close-dialog aria-label="Luk">×</button>
+      <p class="qr-brand" id="qr-title">Filament Stock</p>
+      <div class="qr-img-wrap">
+        <img id="qr-img" src="" width="160" height="160" alt="QR-kode til denne side">
+      </div>
+      <p id="qr-url" class="qr-url"></p>
+      <p id="qr-hint" class="qr-hint">Scan med telefonen på samme WiFi</p>
+    </div>
+  </dialog>
 
   <div id="toast" class="toast" hidden></div>
 
   <script src="lib/zxing.min.js"></script>
   <script src="lib/tesseract/tesseract.min.js"></script>
-  <script type="module" src="js/app.js?v=14"></script>
+  <script type="module" src="js/app.js?v=22"></script>
 </body>
 </html>

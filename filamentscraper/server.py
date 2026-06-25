@@ -16,7 +16,12 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
+REPO_ROOT = ROOT.parent
 STATIC = ROOT / 'static'
+SHARED_UI = REPO_ROOT / 'shared' / 'ui'
+
+sys.path.insert(0, str(REPO_ROOT))
+import app_urls  # noqa: E402
 CACHE_PATH = ROOT / 'data' / 'prices_cache.json'
 SCRAPE_SCRIPT = ROOT / 'scrape.py'
 
@@ -122,15 +127,35 @@ class PriceHandler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write('%s - %s\n' % (self.address_string(), fmt % args))
 
+    def _serve_shared_file(self, filepath: Path) -> None:
+        import mimetypes
+
+        ctype = mimetypes.guess_type(str(filepath))[0] or 'application/octet-stream'
+        data = filepath.read_bytes()
+        self.send_response(200)
+        self.send_header('Content-Type', ctype)
+        self.send_header('Content-Length', str(len(data)))
+        self.send_header('Cache-Control', 'public, max-age=3600')
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self):
         path = urlparse(self.path).path
         if path == '/api/health':
             return json_response(self, {'ok': True, 'app': 'filamentscraper'})
+        if path == '/css/nxgenlab.css':
+            css_path = SHARED_UI / 'nxgenlab.css'
+            if css_path.exists():
+                return self._serve_shared_file(css_path)
+            self.send_error(404)
+            return
         if path == '/api/info':
             page_url = page_url_for(self)
             lip = lan_ip()
             return json_response(self, {
                 'page_url': page_url,
+                'scraper_url': page_url,
+                'stock_url': app_urls.stock_url(self),
                 'lan_ip': lip,
                 'port': self.server.server_address[1],
                 'qr_hint': 'Telefonen skal være på samme WiFi som denne PC',

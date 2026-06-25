@@ -1,19 +1,25 @@
 # Filament Stock
 
-Lille webservice til at holde styr på filament-kasser: scan stregkoder eller farve-labels, tæl spoler op, tag billeder med iPhone og få overblik over lageret.
+Lille webservice til at holde styr på filament-kasser: scan stregkoder eller farve-labels, tæl spoler op, tag billeder med iPhone og få overblik over lageret — integreret med **FilamentScraper** for priser og rabatkøb.
 
 Se **[delivery_summary.md](delivery_summary.md)** for fuld leveranceoversigt og TODO.
 
 ## Funktioner
 
+- **Frontline-dashboard** – bundet kapital, KPI'er, handlingsliste (lav beholdning + prisalarmer), materiale
+- **Pill-navigation** – Home · Scan · Lager · Setup (ikoner)
 - **Scan stregkode** – live kamera eller tag billede (iPhone-venligt, kræver HTTPS)
 - **Scan farve-label (OCR)** – læser Bambu Lab farve-ID (fx `10100`) via server-OCR
 - **Auto-gem** – farve-ID alene er nok; produktet oprettes automatisk ved scan (+1)
 - **Bambu Lab-katalog** – henter produktdata fra EU store, kendte EAN i seed-fil
+- **Bundet kapital** – matcher lager mod FilamentScraper (Bambu SKU + SUNLU fuzzy)
+- **Lav beholdning** – ≤1 spole med links til Rabatkøb og katalog
+- **Prisalarmer** – rabat og prisfald på dine egne farver
+- **Moonraker** – auto −1 spole når print er færdigt (Setup)
 - **Tæl op/ned** – +1 / −1 pr. kasse
-- **Dashboard** – total spoler, fordelt på materiale
 - **Lagerliste** – søgbar oversigt med farvemarkering
 - **Billeder** – uploades fra iPhone og knyttes til produkt
+- **NxGenLab UI** – fælles tema med FilamentScraper, splash, hjælp, QR, Lager ↔ Priser
 - **SQLite database** – `data/filament.db`
 - **LAN-adgang** – brug fra telefon på samme netværk
 
@@ -82,19 +88,25 @@ python3 server.py 8090 --http
 
 1. Åbn **https://** URL i Safari og accepter certifikat-advarslen
 2. Tryk **Del → Tilføj til hjemmeskærm** (PWA)
-3. Gå til **Scan**
-4. **Stregkode:** «Tag billede» eller «Start live scan»
-5. **Farve-ID:** «Scan farve-label (OCR)» – peg på teksten `(10100)` på etiketten
-6. Produktet gemmes automatisk (+1 spole); juster med +1/−1 bagefter
-
-Du kan også indtaste farve-ID manuelt (fx `10100`) uden at scanne.
+3. **Home** – frontline-dashboard med kapital og handlingsliste
+4. **Scan** – stregkode eller farve-label (OCR)
+5. **Lager** – søg og se alle spoler
+6. **Setup** – Moonraker auto −1, hjælp og QR
+7. **Priser** (øverst) – åbn FilamentScraper på samme LAN
 
 ## API
 
 | Endpoint | Beskrivelse |
 |----------|-------------|
 | `GET /api/health` | Server status |
+| `GET /api/info` | LAN URL + link til FilamentScraper |
+| `GET /api/qr` | QR PNG til denne side |
 | `GET /api/inventory` | Hele lageret |
+| `GET /api/inventory/value` | Bundet kapital (Bambu + SUNLU match) |
+| `GET /api/inventory/low-stock` | Spoler med ≤1 tilbage + scraper-links |
+| `GET /api/inventory/price-alerts` | Rabat/prisfald på egne farver |
+| `GET /api/moonraker/status` | Printer-status og aktiv spole |
+| `GET/POST /api/moonraker/config` | Moonraker-indstillinger |
 | `GET /api/stats` | Dashboard-tal |
 | `POST /api/scan` | Scan/tæl (`barcode`/`color_id`, `delta`, `auto_register`) |
 | `POST /api/decode` | Stregkode fra billede (multipart `file`) |
@@ -119,6 +131,8 @@ Bambu bruger 5-cifrede **farve-ID** på labels (fx `10100` = Jade White PLA Basi
 - `zxing-cpp` – server stregkode-decode
 - `rapidocr-onnxruntime` – server OCR af farve-labels
 - `pillow-heif` – HEIC-billeder fra iPhone
-- Vanilla JS mobil-UI
+- Vanilla JS mobil-UI (Frontline dashboard, pill-nav)
+- Delt NxGenLab CSS (`shared/ui/nxgenlab.css`)
 - ZXing + BarcodeDetector (client stregkode)
 - Tesseract.js (client OCR-backup)
+- Moonraker REST API (valgfri auto −1 ved print færdig)

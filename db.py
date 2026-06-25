@@ -102,6 +102,21 @@ def init_db() -> None:
             '''
         )
         _ensure_filament_bambu_columns(conn)
+        _ensure_price_watch_table(conn)
+
+
+def _ensure_price_watch_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        '''
+        CREATE TABLE IF NOT EXISTS price_watch_state (
+            filament_id INTEGER PRIMARY KEY,
+            last_unit_eur REAL,
+            last_ppk REAL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (filament_id) REFERENCES filaments(id) ON DELETE CASCADE
+        )
+        '''
+    )
 
 
 def _ensure_filament_bambu_columns(conn: sqlite3.Connection) -> None:
@@ -110,6 +125,31 @@ def _ensure_filament_bambu_columns(conn: sqlite3.Connection) -> None:
         conn.execute('ALTER TABLE filaments ADD COLUMN bambu_code TEXT DEFAULT ""')
     if 'store_sku' not in cols:
         conn.execute('ALTER TABLE filaments ADD COLUMN store_sku TEXT DEFAULT ""')
+
+
+def get_price_watch(filament_id: int) -> dict | None:
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT * FROM price_watch_state WHERE filament_id = ?',
+            (filament_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def upsert_price_watch(filament_id: int, last_unit_eur: float | None, last_ppk: float | None) -> None:
+    now = utc_now()
+    with get_db() as conn:
+        conn.execute(
+            '''
+            INSERT INTO price_watch_state (filament_id, last_unit_eur, last_ppk, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(filament_id) DO UPDATE SET
+                last_unit_eur = excluded.last_unit_eur,
+                last_ppk = excluded.last_ppk,
+                updated_at = excluded.updated_at
+            ''',
+            (filament_id, last_unit_eur, last_ppk, now),
+        )
 
 
 def row_to_filament(row: sqlite3.Row, photo_count: int = 0) -> dict:

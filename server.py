@@ -16,11 +16,15 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+import app_urls
 import db
+import inventory_value
+import moonraker
 import ocr_label
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / 'static'
+SHARED_UI = ROOT / 'shared' / 'ui'
 DECODE_SCRIPT = ROOT / 'decode_image.py'
 CERT_PATH = ROOT / 'certs' / 'cert.pem'
 KEY_PATH = ROOT / 'certs' / 'key.pem'
@@ -72,10 +76,57 @@ class FilamentHandler(SimpleHTTPRequestHandler):
 
         if path == '/api/health':
             return json_response(self, {'ok': True, 'app': 'filament-stock'})
+        if path == '/css/nxgenlab.css':
+            css_path = SHARED_UI / 'nxgenlab.css'
+            if css_path.exists():
+                return self._serve_file(css_path)
+            self.send_error(404)
+            return
+        if path == '/api/info':
+            scheme = getattr(self.server, '_nxgen_scheme', 'https')
+            page_url = app_urls.page_url_for(self, scheme=scheme)
+            lip = app_urls.lan_ip()
+            return json_response(self, {
+                'page_url': page_url,
+                'stock_url': page_url,
+                'scraper_url': app_urls.scraper_url(self),
+                'lan_ip': lip,
+                'qr_hint': 'Telefonen skal være på samme WiFi som denne PC',
+            })
+        if path == '/api/qr':
+            qs = parse_qs(parsed.query)
+            try:
+                size = int(qs.get('size', ['160'])[0])
+            except ValueError:
+                size = 160
+            size = max(96, min(size, 320))
+            scheme = getattr(self.server, '_nxgen_scheme', 'https')
+            target = qs.get('url', [None])[0] or app_urls.page_url_for(self, scheme=scheme)
+            try:
+                png = app_urls.fetch_qr_png(target, size=size)
+            except OSError as exc:
+                return json_response(self, {'error': str(exc)}, status=502)
+            self.send_response(200)
+            self.send_header('Content-Type', 'image/png')
+            self.send_header('Content-Length', str(len(png)))
+            self.send_header('Cache-Control', 'no-store')
+            self.end_headers()
+            self.wfile.write(png)
+            return
         if path == '/api/stats':
             return json_response(self, db.get_stats())
         if path == '/api/inventory':
             return json_response(self, {'items': db.list_filaments()})
+        if path == '/api/inventory/value':
+            return json_response(self, inventory_value.compute_inventory_value())
+        if path == '/api/inventory/low-stock':
+            return json_response(self, inventory_value.compute_low_stock())
+        if path == '/api/inventory/price-alerts':
+            return json_response(self, inventory_value.compute_price_alerts())
+        if path == '/api/moonraker/status':
+            return json_response(self, moonraker.get_status())
+        if path == '/api/moonraker/config':
+            return json_response(self, moonraker.load_config())
         if path == '/api/materials':
             return json_response(self, {'materials': db.MATERIALS})
         if path == '/api/bambu/stats':
@@ -130,6 +181,11 @@ class FilamentHandler(SimpleHTTPRequestHandler):
         path = parsed.path
 
         try:
+            if path == '/api/moonraker/config':
+                data = read_json(self)
+                config = moonraker.save_config(data)
+                return json_response(self, {'ok': True, 'config': config})
+
             if path == '/api/scan':
                 data = read_json(self)
                 code = (data.get('barcode') or data.get('color_id') or data.get('sku') or '').strip()
@@ -347,11 +403,13 @@ def main():
 
     db.init_db()
     maybe_sync_bambu_catalog()
+    moonraker.start_watcher()
     server = ThreadingHTTPServer(('0.0.0.0', args.port), FilamentHandler)
     scheme = 'http'
     if use_https:
         server.socket = build_ssl_context().wrap_socket(server.socket, server_side=True)
         scheme = 'https'
+    server._nxgen_scheme = scheme
 
     print(f'Filament Stock på {scheme}://0.0.0.0:{args.port}')
     print(f'  Database: {db.DB_PATH}')

@@ -62,7 +62,7 @@ Other UI:
 |----------|-------------|
 | `GET /api/health` | Server status |
 | `GET /api/prices` | Cached items, deals, max-discount buys |
-| `GET /api/info` | LAN `page_url` for QR (replaces `localhost`) |
+| `GET /api/info` | LAN `page_url`, `stock_url` (Filament Stock HTTPS) |
 | `GET /api/qr` | PNG QR code for current LAN URL |
 | `POST /api/refresh` | Trigger background scrape (~1 min) |
 
