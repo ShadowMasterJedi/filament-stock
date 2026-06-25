@@ -29,6 +29,19 @@ Mobil-først **filament-lager** med HTTPS, stregkode-scanning, Bambu Lab-integra
 | HEIC/HEIF-billeder (pillow-heif) | ✅ |
 | Billedkomprimering før scan (max 1600px) | ✅ |
 
+### FilamentScraper (`filamentscraper/`)
+
+| Funktion | Status |
+|----------|--------|
+| Bambu + SUNLU EU pris-scrape | ✅ |
+| Sammenlign / Rabatkøb / Katalog UI | ✅ |
+| Volume-rabat (SUNLU MOQ, Bambu 10-pak) | ✅ |
+| Kun på lager-filter | ✅ |
+| Cron 2× daglig | ✅ |
+| Splash, hjælp, LAN QR | ✅ |
+
+Se [filamentscraper/delivery_summary.md](filamentscraper/delivery_summary.md).
+
 ### Scan-flow
 
 1. **Stregkode** – «Tag billede» eller live kamera → server (`zxing-cpp`) → fallback ZXing i browser
@@ -63,6 +76,7 @@ filament-stock/
 │       ├── zxing.min.js
 │       └── tesseract/     # Browser OCR-backup + eng.traineddata.gz
 ├── delivery_summary.md    # Denne fil
+├── filamentscraper/       # Bambu + SUNLU prissammenligning (port 8095)
 └── README.md
 ```
 

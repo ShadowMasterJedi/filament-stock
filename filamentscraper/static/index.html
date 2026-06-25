@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a1628">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Filament priser – Bambu vs SUNLU</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="splash" class="splash" role="presentation" aria-hidden="true">
+    <div class="splash-inner">
+      <div class="splash-icon" aria-hidden="true">
+        <svg viewBox="0 0 64 64" width="72" height="72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="26" stroke="#00d4ff" stroke-width="3"/>
+          <circle cx="32" cy="32" r="10" stroke="#00d4ff" stroke-width="3"/>
+          <path d="M32 6v10M32 48v10M6 32h10M48 32h10" stroke="#00d4ff" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <p class="splash-eyebrow">NxGenLab</p>
+      <h2 class="splash-title">Filament priser</h2>
+      <p class="splash-tag">Bambu Lab · SUNLU EU</p>
+      <footer class="splash-foot">
+        <span>NxGenLab</span>
+        <span>v1.0</span>
+      </footer>
+    </div>
+  </div>
+
+  <div id="app">
+    <header class="header">
+      <div class="header-main">
+        <p class="eyebrow">Bambu Lab · SUNLU EU</p>
+        <h1>Hvad koster filament?</h1>
+        <p class="lede">Sammenlign priser i euro. Rabatter ved 3 stk (SUNLU) eller 10 stk (Bambu).</p>
+      </div>
+      <div class="header-actions">
+        <p id="updated-at" class="status-line"><span class="status-dot"></span><span id="updated-text">Henter…</span></p>
+        <div class="header-icon-btns">
+          <button id="btn-help" type="button" class="icon-btn" aria-label="Hjælp">?</button>
+          <button id="btn-qr" type="button" class="icon-btn" aria-label="QR-kode til denne side">QR</button>
+          <button id="btn-refresh" type="button" class="btn" aria-label="Opdater priser">↻ Opdater</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="view-tabs" role="tablist" aria-label="Visning">
+      <button type="button" class="tab active" data-view="overview" role="tab" aria-selected="true">
+        Sammenlign
+      </button>
+      <button type="button" class="tab" data-view="maxrabat" role="tab" aria-selected="false">
+        Rabatkøb <span id="badge-rabat" class="tab-badge" hidden>0</span>
+      </button>
+      <button type="button" class="tab" data-view="list" role="tab" aria-selected="false">
+        Katalog
+      </button>
+    </nav>
+
+    <div id="loading-bar" class="loading-bar" hidden aria-hidden="true"></div>
+
+    <!-- Sammenlign -->
+    <div id="view-overview" class="view-panel active" role="tabpanel">
+      <section id="hero-deal" class="hero-deal" hidden>
+        <p class="hero-label">Bedste pris lige nu</p>
+        <div id="hero-content" class="hero-content"></div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-head">
+          <h2>Pris pr. kg</h2>
+          <p class="section-hint">Med rabat · klik et materiale for at filtrere kataloget</p>
+        </div>
+        <div class="compare-strip" id="compare-strip"></div>
+      </section>
+
+      <p id="overview-empty" class="empty-state" hidden>
+        Ingen priser endnu. Tryk <strong>Opdater</strong> øverst.
+      </p>
+
+      <div class="overview-cta">
+        <button type="button" class="cta-btn" data-goto="maxrabat">Se alle rabatkøb →</button>
+        <button type="button" class="cta-btn ghost" data-goto="list">Åbn fuldt katalog</button>
+      </div>
+    </div>
+
+    <!-- Rabatkøb -->
+    <div id="view-maxrabat" class="view-panel" role="tabpanel" hidden>
+      <section id="rabat-hero" class="hero-deal" hidden>
+        <p class="hero-label">Bedste rabat lige nu</p>
+        <div id="rabat-hero-content" class="hero-content"></div>
+      </section>
+
+      <div id="maxrabat-list"></div>
+
+      <p id="maxrabat-empty" class="empty-state" hidden>Ingen aktive rabatter fundet.</p>
+    </div>
+
+    <!-- Katalog -->
+    <div id="view-list" class="view-panel" role="tabpanel" hidden>
+      <section class="toolbar panel">
+        <input id="filter-q" class="search" type="search" placeholder="Søg materiale, farve, produkt…" autocomplete="off" aria-label="Søg">
+
+        <div class="filter-group">
+          <span class="filter-label">Materiale</span>
+          <div class="chip-row" id="material-chips"></div>
+        </div>
+
+        <div class="filter-group">
+          <span class="filter-label">Butik</span>
+          <div class="chip-row" id="brand-chips"></div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle">
+            <input id="filter-instock" type="checkbox" checked>
+            <span>Kun på lager</span>
+          </label>
+          <label class="toggle">
+            <input id="filter-1kg" type="checkbox" checked>
+            <span>Kun 1 kg</span>
+          </label>
+          <label class="toggle">
+            <input id="filter-discount" type="checkbox">
+            <span>Kun rabat</span>
+          </label>
+          <label class="toggle">
+            <input id="filter-best" type="checkbox" checked>
+            <span>Vis bedste €/kg</span>
+          </label>
+        </div>
+      </section>
+
+      <p id="result-count" class="result-count"></p>
+      <div id="catalog-list" class="catalog-list"></div>
+      <div class="table-wrap desktop-only">
+        <table>
+          <thead>
+            <tr>
+              <th>Butik</th>
+              <th>Produkt</th>
+              <th class="num">€/kg</th>
+              <th class="num">Pris</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="price-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="help-dialog" class="overlay-dialog" aria-labelledby="help-title">
+    <div class="dialog-head">
+      <h2 id="help-title">Hjælp</h2>
+      <button type="button" class="dialog-close" data-close-dialog aria-label="Luk">×</button>
+    </div>
+    <div class="dialog-body help-body">
+      <section class="help-card">
+        <h3>Sammenlign</h3>
+        <p>Se bedste €/kg lige nu og sammenlign materialer. Klik et materiale for at åbne kataloget filtreret.</p>
+      </section>
+      <section class="help-card">
+        <h3>Rabatkøb</h3>
+        <p>SUNLU har ofte MOQ 3 spoler med salgspris. Bambu giver mængderabat ved 10× 1 kg. Tallene viser den laveste enhedspris.</p>
+      </section>
+      <section class="help-card">
+        <h3>Katalog</h3>
+        <p>Søg, filtrer på materiale og butik. <strong>Kun på lager</strong> skjuler udsolgte varianter hos Bambu og SUNLU.</p>
+      </section>
+      <section class="help-card">
+        <h3>Opdatering</h3>
+        <p>Tryk <strong>Opdater</strong> for ny scrape (~1 min). Cron kører automatisk kl. 06:00 og 18:00 hvis installeret.</p>
+      </section>
+      <p class="help-note">Priser i EUR fra eu.store.bambulab.com og de.store.sunlu.com.</p>
+    </div>
+  </dialog>
+
+  <dialog id="qr-dialog" class="overlay-dialog overlay-qr" aria-labelledby="qr-title">
+    <div class="qr-screen">
+      <div class="qr-header">
+        <span>SCAN</span>
+        <span>NxGenLab</span>
+      </div>
+      <button type="button" class="dialog-close qr-close" data-close-dialog aria-label="Luk">×</button>
+      <p class="qr-brand" id="qr-title">Filament priser</p>
+      <div class="qr-img-wrap">
+        <img id="qr-img" src="" width="160" height="160" alt="QR-kode til denne side">
+      </div>
+      <p id="qr-url" class="qr-url"></p>
+      <p id="qr-hint" class="qr-hint">Scan med telefonen på samme WiFi</p>
+    </div>
+  </dialog>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

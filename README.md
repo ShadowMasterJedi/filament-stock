@@ -17,6 +17,17 @@ Se **[delivery_summary.md](delivery_summary.md)** for fuld leveranceoversigt og 
 - **SQLite database** – `data/filament.db`
 - **LAN-adgang** – brug fra telefon på samme netværk
 
+## FilamentScraper (prissammenligning)
+
+Undermappen **[filamentscraper/](filamentscraper/)** sammenligner Bambu Lab og SUNLU priser i EUR (port **8095**, HTTP).
+
+```bash
+cd ~/Projects/filament-stock/filamentscraper
+./start.sh
+```
+
+Se [filamentscraper/README.md](filamentscraper/README.md) og [filamentscraper/docs/USER_GUIDE.md](filamentscraper/docs/USER_GUIDE.md).
+
 ## Start
 
 ```bash
